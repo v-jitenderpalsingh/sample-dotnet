@@ -1,0 +1,13 @@
+name: PowerShell Test
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    name: Build and Test on ${{ matrix.os }}
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Check PowerShell version
+        run: pwsh --version
+        
