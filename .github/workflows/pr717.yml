@@ -10,14 +10,13 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: StephenCleary/setup-dotnet@fix-csc-problem-matcher
         with:
           dotnet-version: '8.0.x'
 
-      - name: Scaffold a solution with TWO broken projects
+      - name: Scaffold TWO broken projects (no .sln needed)
         run: |
           mkdir -p broken && cd broken
-          dotnet new sln -n BrokenSln --force
 
           # --- Project 1 ---
           dotnet new classlib -n Broken --force
@@ -29,7 +28,7 @@ jobs:
           }
           EOF
 
-          # --- Project 2 (independent, so MSBuild can build them in parallel) ---
+          # --- Project 2 (independent, lets MSBuild build them in parallel) ---
           dotnet new classlib -n AlsoBroken --force
           cat > AlsoBroken/Class1.cs <<'EOF'
           namespace AlsoBroken;
@@ -39,9 +38,7 @@ jobs:
           }
           EOF
 
-          dotnet sln BrokenSln.sln add Broken/Broken.csproj AlsoBroken/AlsoBroken.csproj
-
-          # --- Project for dotnet format scenario ---
+          # --- File used only by Scenario C (dotnet format) ---
           cat > Broken/Formatting.cs <<'EOF'
           namespace Broken;
           public class Formatting
@@ -51,31 +48,36 @@ jobs:
           }
           EOF
 
-      # --- Scenario A: plain `dotnet build` -> CS#### with (line,col) ---
+          ls -la Broken AlsoBroken
+
+      # --- Scenario A: plain `dotnet build` on a single project -> CS#### ---
       - name: 'Scenario A — dotnet build (expect CSxxxx)'
         working-directory: broken
         continue-on-error: true
-        run: dotnet build BrokenSln.sln -nologo
+        run: dotnet build Broken/Broken.csproj -nologo
 
-      # --- Scenario B: `dotnet msbuild -m` on a multi-project SLN -> "N>" prefix ---
-      # The 'N>' prefix only appears when MSBuild builds >=2 projects in parallel.
-      - name: 'Scenario B — dotnet msbuild -m on a solution (expect ''N>'' prefixed CSxxxx)'
+      # --- Scenario B: `dotnet msbuild` on TWO projects in parallel -> "N>" prefix ---
+      # The 'N>' prefix appears when MSBuild builds >=2 projects concurrently.
+      - name: 'Scenario B — dotnet msbuild -m on two .csproj files (expect ''N>'' prefixed CSxxxx)'
         working-directory: broken
         continue-on-error: true
-        run: dotnet msbuild BrokenSln.sln -m:4 -nologo -clp:ShowProjectFile
+        run: |
+          dotnet msbuild \
+            Broken/Broken.csproj \
+            AlsoBroken/AlsoBroken.csproj \
+            -m:4 -nologo -clp:ShowProjectFile
 
       # --- Scenario B (fallback): synthesize the exact line shape the new regex must catch.
-      # If your runner's MSBuild still doesn't emit the prefix, this step proves the matcher works.
+      # This guarantees an 'N>'-prefixed line in the log even if MSBuild's console output
+      # on this runner doesn't include the prefix.
       - name: 'Scenario B-fallback — emit a synthetic ''N>''-prefixed line'
         working-directory: broken
         continue-on-error: true
         run: |
-          # Format matches the 5th test case added by PR #717:
-          # "    20>C:\...\SomeFile.cs(8,2): error CS1014: ... [C:\...\SomeProject.csproj]"
           PROJ_ABS="$(pwd)/Broken/Broken.csproj"
           FILE_ABS="$(pwd)/Broken/Class1.cs"
           echo "    2>${FILE_ABS}(4,35): error CS1002: ; expected [${PROJ_ABS}]"
-          exit 1   # non-zero so the matcher actually scans the failed step's output
+          exit 1   # non-zero so the matcher scans the failed step's output
 
       # --- Scenario C: `dotnet format` -> non-numeric code (WHITESPACE) ---
       - name: 'Scenario C — dotnet format (expect WHITESPACE)'
