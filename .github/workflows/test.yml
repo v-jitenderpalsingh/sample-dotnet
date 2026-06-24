@@ -1,6 +1,6 @@
 name: Test 141
 
-on: [pull_request, workflow_dispatch]
+on: [workflow_dispatch]
 
 jobs:
   build:

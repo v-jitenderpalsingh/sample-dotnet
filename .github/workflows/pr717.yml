@@ -1,0 +1,55 @@
+name: Test CSC problem matcher
+
+on: [push, workflow_dispatch]
+
+jobs:
+  test-matcher:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup .NET (PR 717)
+        uses: StephenCleary/setup-dotnet@fix-csc-problem-matcher
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Scaffold a broken project
+        run: |
+          mkdir -p broken && cd broken
+          dotnet new classlib -n Broken --force
+          # 1) Plain CS error: missing semicolon -> CS1002
+          cat > Broken/Class1.cs <<'EOF'
+          namespace Broken;
+          public class Class1
+          {
+              public int Value { get; set }   // missing ';' -> CS1002 at a specific (line,col)
+          }
+          EOF
+          # 2) dotnet format violation: trailing whitespace + bad indent -> WHITESPACE
+          cat > Broken/Formatting.cs <<'EOF'
+          namespace Broken;
+          public class Formatting
+          {
+              public int X = 1;   
+                public int Y = 2;
+          }
+          EOF
+
+      # --- Scenario A: plain `dotnet build` -> CS#### with (line,col) ---
+      - name: dotnet build (expects CSxxxx annotation)
+        working-directory: broken
+        continue-on-error: true
+        run: dotnet build Broken/Broken.csproj -nologo
+
+      # --- Scenario B: `dotnet msbuild -m` -> output prefixed with "N>" ---
+      - name: dotnet msbuild -m (expects 'N>' prefixed annotation)
+        working-directory: broken
+        continue-on-error: true
+        run: dotnet msbuild Broken/Broken.csproj -m:4 -nologo
+
+      # --- Scenario C: `dotnet format` -> non-numeric code like WHITESPACE ---
+      - name: dotnet format --verify-no-changes (expects WHITESPACE annotation)
+        working-directory: broken
+        continue-on-error: true
+        run: dotnet format Broken/Broken.csproj --verify-no-changes --severity info
+    
