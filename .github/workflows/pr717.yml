@@ -8,24 +8,40 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Setup .NET (PR 717)
-        uses: actions/setup-dotnet@v5
+
+      - name: Setup .NET
+        uses: StephenCleary/setup-dotnet@fix-csc-problem-matcher
         with:
           dotnet-version: '8.0.x'
 
-      - name: Scaffold a broken project
+      - name: Scaffold a solution with TWO broken projects
         run: |
           mkdir -p broken && cd broken
+          dotnet new sln -n BrokenSln --force
+
+          # --- Project 1 ---
           dotnet new classlib -n Broken --force
-          # 1) Plain CS error: missing semicolon -> CS1002
           cat > Broken/Class1.cs <<'EOF'
           namespace Broken;
           public class Class1
           {
-              public int Value { get; set }   // missing ';' -> CS1002 at a specific (line,col)
+              public int Value { get; set }   // missing ';' -> CS1002
           }
           EOF
-          # 2) dotnet format violation: trailing whitespace + bad indent -> WHITESPACE
+
+          # --- Project 2 (independent, so MSBuild can build them in parallel) ---
+          dotnet new classlib -n AlsoBroken --force
+          cat > AlsoBroken/Class1.cs <<'EOF'
+          namespace AlsoBroken;
+          public class Class1
+          {
+              public int Other { get; set }   // missing ';' -> CS1002
+          }
+          EOF
+
+          dotnet sln BrokenSln.sln add Broken/Broken.csproj AlsoBroken/AlsoBroken.csproj
+
+          # --- Project for dotnet format scenario ---
           cat > Broken/Formatting.cs <<'EOF'
           namespace Broken;
           public class Formatting
@@ -36,20 +52,33 @@ jobs:
           EOF
 
       # --- Scenario A: plain `dotnet build` -> CS#### with (line,col) ---
-      - name: dotnet build (expects CSxxxx annotation)
+      - name: 'Scenario A — dotnet build (expect CSxxxx)'
         working-directory: broken
         continue-on-error: true
-        run: dotnet build Broken/Broken.csproj -nologo
+        run: dotnet build BrokenSln.sln -nologo
 
-      # --- Scenario B: `dotnet msbuild -m` -> output prefixed with "N>" ---
-      - name: dotnet msbuild -m (expects 'N>' prefixed annotation)
+      # --- Scenario B: `dotnet msbuild -m` on a multi-project SLN -> "N>" prefix ---
+      # The 'N>' prefix only appears when MSBuild builds >=2 projects in parallel.
+      - name: 'Scenario B — dotnet msbuild -m on a solution (expect ''N>'' prefixed CSxxxx)'
         working-directory: broken
         continue-on-error: true
-        run: dotnet msbuild Broken/Broken.csproj -m:4 -nologo
+        run: dotnet msbuild BrokenSln.sln -m:4 -nologo -clp:ShowProjectFile
 
-      # --- Scenario C: `dotnet format` -> non-numeric code like WHITESPACE ---
-      - name: dotnet format --verify-no-changes (expects WHITESPACE annotation)
+      # --- Scenario B (fallback): synthesize the exact line shape the new regex must catch.
+      # If your runner's MSBuild still doesn't emit the prefix, this step proves the matcher works.
+      - name: 'Scenario B-fallback — emit a synthetic ''N>''-prefixed line'
+        working-directory: broken
+        continue-on-error: true
+        run: |
+          # Format matches the 5th test case added by PR #717:
+          # "    20>C:\...\SomeFile.cs(8,2): error CS1014: ... [C:\...\SomeProject.csproj]"
+          PROJ_ABS="$(pwd)/Broken/Broken.csproj"
+          FILE_ABS="$(pwd)/Broken/Class1.cs"
+          echo "    2>${FILE_ABS}(4,35): error CS1002: ; expected [${PROJ_ABS}]"
+          exit 1   # non-zero so the matcher actually scans the failed step's output
+
+      # --- Scenario C: `dotnet format` -> non-numeric code (WHITESPACE) ---
+      - name: 'Scenario C — dotnet format (expect WHITESPACE)'
         working-directory: broken
         continue-on-error: true
         run: dotnet format Broken/Broken.csproj --verify-no-changes --severity info
-    
