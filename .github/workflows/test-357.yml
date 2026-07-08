@@ -1,0 +1,30 @@
+name: Test issue 357
+
+on: [push, workflow_dispatch]
+
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+          source-url: https://nuget.pkg.github.com/v-jitenderpalsingh/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Show where nuget.config ended up
+        run: |
+          echo "Expected location (workspace root):"
+          ls -la $GITHUB_WORKSPACE/nuget.config
+          echo ""
+          echo "Actual location (one level up - the bug):"
+          ls -la $GITHUB_WORKSPACE/../nuget.config
+
+          echo ""
+          ls -la $GITHUB_WORKSPACE
+
+          echo ""
+          ls -la $GITHUB_WORKSPACE/..
