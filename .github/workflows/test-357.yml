@@ -32,4 +32,3 @@ jobs:
           echo ""
           echo "NuGet config paths:"
           dotnet nuget config paths
-          dotnet nuget config get all
