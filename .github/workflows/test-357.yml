@@ -32,3 +32,11 @@ jobs:
           echo ""
           echo "NuGet config paths:"
           dotnet nuget config paths
+      
+      - name: Move generated NuGet configuration
+        run: |
+          mv ../nuget.config ./nuget.config
+          echo ""
+          ls -la $GITHUB_WORKSPACE/
+          echo ""
+          ls -la $GITHUB_WORKSPACE/..
