@@ -36,7 +36,7 @@ jobs:
       - name: Move generated NuGet configuration
         run: |
           mkdir -p ./temp/
-          mv ../nuget.config ./temp/nuget.config
+          mv ../nuget.config ./temp/
           echo ""
           ls -la $GITHUB_WORKSPACE/
           echo ""
