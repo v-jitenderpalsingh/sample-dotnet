@@ -5,10 +5,14 @@ on: [push, workflow_dispatch]
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   test:
-    name: ${{ matrix.os }}
-    runs-on: ubuntu-24.04
+    name: Test 518 - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -28,15 +32,16 @@ jobs:
       
       - name: Verify .NET installation
         run: |
+          echo "DOTNET_ROOT=$DOTNET_ROOT"
+          command -v dotnet
           dotnet --version
           dotnet --list-sdks
           dotnet --list-runtimes
-          echo "${{ which dotnet }}"
   
 
   test-4:
-    name: ${{ matrix.os }}
-    runs-on: ubuntu-24.04
+    name: Test PR 4 - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -56,14 +61,15 @@ jobs:
       
       - name: Verify .NET installation
         run: |
+          echo "DOTNET_ROOT=$DOTNET_ROOT"
+          command -v dotnet
           dotnet --version
           dotnet --list-sdks
           dotnet --list-runtimes
-          echo "${{ which dotnet }}"
 
   test-5:
-    name: ${{ matrix.os }}
-    runs-on: ubuntu-24.04
+    name: Test PR 5 - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -83,7 +89,8 @@ jobs:
       
       - name: Verify .NET installation
         run: |
+          echo "DOTNET_ROOT=$DOTNET_ROOT"
+          command -v dotnet
           dotnet --version
           dotnet --list-sdks
           dotnet --list-runtimes
-          echo "${{ which dotnet }}"
