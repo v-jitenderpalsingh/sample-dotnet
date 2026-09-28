@@ -16,16 +16,16 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Block both directories
+      - name: Block default directory only
+        shell: pwsh
         run: |
+          $dir = "$env:ProgramFiles\dotnet"
           $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-          foreach ($dir in @("$env:ProgramFiles\dotnet", "$env:USERPROFILE\.dotnet")) {
-            if (!(Test-Path $dir -PathType Container)) {
-              throw "Directory does not exist: $dir"
-            }
-            icacls $dir /deny "*${sid}:(WD,AD)"
-            if ($LASTEXITCODE -ne 0) { throw "Cannot block $dir" }
+          if (!(Test-Path $dir -PathType Container)) {
+            throw "Directory does not exist: $dir"
           }
+          icacls $dir /deny "*${sid}:(WD,AD)"
+          if ($LASTEXITCODE -ne 0) { throw "Cannot block $dir" }
 
       - name: Setup .NET
         id: setup
@@ -49,16 +49,16 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Block both directories
+      - name: Block default directory only
+        shell: pwsh
         run: |
+          $dir = "$env:ProgramFiles\dotnet"
           $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-          foreach ($dir in @("$env:ProgramFiles\dotnet", "$env:USERPROFILE\.dotnet")) {
-            if (!(Test-Path $dir -PathType Container)) {
-              throw "Directory does not exist: $dir"
-            }
-            icacls $dir /deny "*${sid}:(WD,AD)"
-            if ($LASTEXITCODE -ne 0) { throw "Cannot block $dir" }
+          if (!(Test-Path $dir -PathType Container)) {
+            throw "Directory does not exist: $dir"
           }
+          icacls $dir /deny "*${sid}:(WD,AD)"
+          if ($LASTEXITCODE -ne 0) { throw "Cannot block $dir" }
 
       - name: Setup .NET
         id: setup
