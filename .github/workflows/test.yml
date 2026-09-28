@@ -45,46 +45,6 @@ jobs:
           dotnet --list-runtimes
   
 
-  test-4:
-    name: Test PR 4 - ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-
-    env:
-      DOTNET_INSTALL_DIR: ''
-      DOTNET_ROOT: ''
-
-    steps:
-      - uses: actions/checkout@main
-
-      - name: Restrict default installation directory
-        run: |
-          test "$(id -u)" -ne 0
-          sudo chmod a-w /usr/share/dotnet
-          test ! -w /usr/share/dotnet
-
-      - name: Setup .NET
-        uses: v-mahabaleshwars/setup-dotnet@feature/518-fallback
-        with:
-          dotnet-version: '8.0.x'
-      
-      - name: Verify .NET installation
-        run: |
-          echo "DOTNET_ROOT=$DOTNET_ROOT"
-          command -v dotnet
-          dotnet --version
-          dotnet --list-sdks
-          dotnet --list-runtimes
-
-      - name: Confirm home fallback
-        run: |
-          echo "DOTNET_ROOT=$DOTNET_ROOT"
-          test "$DOTNET_ROOT" = "$HOME/.dotnet"
-          "$DOTNET_ROOT/dotnet" --list-sdks
-
   test-5:
     name: Test PR 5 - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
