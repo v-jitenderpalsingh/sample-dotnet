@@ -1,75 +1,63 @@
-name: Test both directories blocked - Windows
+name: Test Windows ACL fallback
 
 on: [push, workflow_dispatch]
 
 permissions:
   contents: read
 
-env:
-  DOTNET_INSTALL_DIR: ''
-  DOTNET_ROOT: ''
-
 jobs:
   test:
-    name: Test setup-dotnet
     runs-on: windows-latest
     timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_INSTALL_DIR: ''
+      DOTNET_ROOT: ''
 
     steps:
-      - name: Block default directory only
-        shell: pwsh
+      - name: Prepare ACL test
         run: |
-          $dir = "$env:ProgramFiles\dotnet"
-          $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-          if (!(Test-Path $dir -PathType Container)) {
-            throw "Directory does not exist: $dir"
+          $root = "$env:RUNNER_TEMP\dotnet-acl"
+          $system = "$root\program-files\dotnet"
+          $home = "$root\home"
+
+          New-Item -ItemType Directory -Force -Path $system, "$home\.dotnet"
+
+          $account = whoami
+          icacls $system /deny "${account}:(WD)"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to set ACL' }
+
+          # Folder creation must succeed.
+          New-Item -ItemType Directory "$system\folder-probe"
+          Remove-Item "$system\folder-probe"
+
+          # File creation must fail with access denied.
+          try {
+            [System.IO.File]::WriteAllText("$system\file-probe", 'test')
+            throw 'ACL test failed: file creation was allowed'
+          } catch [System.UnauthorizedAccessException] {
+            Write-Host 'Confirmed: folders allowed, files denied'
           }
-          icacls $dir /deny "*${sid}:(WD,AD)"
-          if ($LASTEXITCODE -ne 0) { throw "Cannot block $dir" }
 
-      - name: Setup .NET
-        id: setup
-        uses: actions/setup-dotnet@main
-        with:
-          dotnet-version: |
-            8.0.x
-            7.0.x
-      
-      - name: verify versions
-        run: |
-          command -v dotnet
-          dotnet --version
-          dotnet --list-sdks
-          dotnet --list-runtimes
+          # Home remains writable.
+          [System.IO.File]::WriteAllText("$home\.dotnet\probe", 'test')
+          Remove-Item "$home\.dotnet\probe"
 
-  test-5:
-    name: Test PR 5
-    runs-on: windows-latest
-    timeout-minutes: 15
+          "PROGRAMFILES=$root\program-files" >> $env:GITHUB_ENV
+          "USERPROFILE=$home" >> $env:GITHUB_ENV
+          "HOME=$home" >> $env:GITHUB_ENV
 
-    steps:
-      - name: Block default directory only
-        shell: pwsh
-        run: |
-          $dir = "$env:ProgramFiles\dotnet"
-          $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-          if (!(Test-Path $dir -PathType Container)) {
-            throw "Directory does not exist: $dir"
-          }
-          icacls $dir /deny "*${sid}:(WD,AD)"
-          if ($LASTEXITCODE -ne 0) { throw "Cannot block $dir" }
-
-      - name: Setup .NET
-        id: setup
+      - name: Test PR
         uses: v-priyagupta108/setup-dotnet@install-dir-writable-fallback
         with:
-          dotnet-version: |
-            8.0.x
-            7.0.x
-      
-      - name: verify versions
+          dotnet-version: '8.0.x'
+
+      - name: Verify home fallback
         run: |
-          command -v dotnet
-          dotnet --version
-          dotnet --list-sdks
-          dotnet --list-runtimes
+          Write-Host "DOTNET_ROOT=$env:DOTNET_ROOT"
+          if ($env:DOTNET_ROOT -ne "$env:USERPROFILE\.dotnet") {
+            throw 'Home fallback was not selected'
+          }
+          & "$env:DOTNET_ROOT\dotnet.exe" --list-sdks
