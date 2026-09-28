@@ -1,5 +1,4 @@
 name: Test Windows ACL fallback
-
 on: [push, workflow_dispatch]
 
 permissions:
@@ -21,43 +20,35 @@ jobs:
         run: |
           $root = "$env:RUNNER_TEMP\dotnet-acl"
           $system = "$root\program-files\dotnet"
-          $home = "$root\home"
-
-          New-Item -ItemType Directory -Force -Path $system, "$home\.dotnet"
+          $testHome = "$root\home"
+          New-Item -ItemType Directory -Force -Path $system, "$testHome\.dotnet"
 
           $account = whoami
           icacls $system /deny "${account}:(WD)"
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to set ACL' }
+          if ($LASTEXITCODE -ne 0) { throw 'ACL setup failed' }
 
-          # Folder creation must succeed.
           New-Item -ItemType Directory "$system\folder-probe"
           Remove-Item "$system\folder-probe"
-
-          # File creation must fail with access denied.
           try {
-            [System.IO.File]::WriteAllText("$system\file-probe", 'test')
-            throw 'ACL test failed: file creation was allowed'
-          } catch [System.UnauthorizedAccessException] {
+            [IO.File]::WriteAllText("$system\file-probe", 'test')
+            throw 'Invalid test: file creation succeeded'
+          } catch [UnauthorizedAccessException] {
             Write-Host 'Confirmed: folders allowed, files denied'
           }
-
-          # Home remains writable.
-          [System.IO.File]::WriteAllText("$home\.dotnet\probe", 'test')
-          Remove-Item "$home\.dotnet\probe"
+          [IO.File]::WriteAllText("$testHome\.dotnet\probe", 'test')
+          Remove-Item "$testHome\.dotnet\probe"
 
           "PROGRAMFILES=$root\program-files" >> $env:GITHUB_ENV
-          "USERPROFILE=$home" >> $env:GITHUB_ENV
-          "HOME=$home" >> $env:GITHUB_ENV
+          "USERPROFILE=$testHome" >> $env:GITHUB_ENV
 
       - name: Test PR
         uses: v-priyagupta108/setup-dotnet@install-dir-writable-fallback
         with:
           dotnet-version: '8.0.x'
 
-      - name: Verify home fallback
+      - name: Verify fallback
         run: |
-          Write-Host "DOTNET_ROOT=$env:DOTNET_ROOT"
           if ($env:DOTNET_ROOT -ne "$env:USERPROFILE\.dotnet") {
-            throw 'Home fallback was not selected'
+            throw "Home fallback not selected: $env:DOTNET_ROOT"
           }
           & "$env:DOTNET_ROOT\dotnet.exe" --list-sdks
