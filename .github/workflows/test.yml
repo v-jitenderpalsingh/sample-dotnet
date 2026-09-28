@@ -36,7 +36,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.x
-            9.0.x
+            7.0.x
       
       - name: Verify .NET installation
         run: |
@@ -72,8 +72,8 @@ jobs:
         uses: v-priyagupta108/setup-dotnet@install-dir-writable-fallback
         with:
           dotnet-version: |
-            '8.0.x'
-            '9.0.x'
+            8.0.x
+            7.0.x
       
       - name: Verify .NET installation
         run: |
