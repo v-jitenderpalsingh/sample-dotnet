@@ -1,94 +1,77 @@
-name: Test 518
+name: Test both directories blocked - Windows
 
 on: [push, workflow_dispatch]
 
 permissions:
   contents: read
 
-defaults:
-  run:
-    shell: bash
+env:
+  DOTNET_INSTALL_DIR: ''
+  DOTNET_ROOT: ''
 
 jobs:
   test:
-    name: Test 518 - ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-
-    env:
-      DOTNET_INSTALL_DIR: ''
-      DOTNET_ROOT: ''
+    name: Test setup-dotnet
+    runs-on: windows-latest
+    timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@main
-
-      - name: Block default directory
+      - name: Block both directories
         run: |
-          test "$(id -u)" -ne 0
-          test -d /usr/share/dotnet
-          test -d "$HOME/.dotnet"
-
-          sudo chmod 000 /usr/share/dotnet
+          $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          foreach ($dir in @("$env:ProgramFiles\dotnet", "$env:USERPROFILE\.dotnet")) {
+            if (!(Test-Path $dir -PathType Container)) {
+              throw "Directory does not exist: $dir"
+            }
+            icacls $dir /deny "*${sid}:(WD,AD)"
+            if ($LASTEXITCODE -ne 0) { throw "Cannot block $dir" }
+          }
 
       - name: Setup .NET
+        id: setup
         uses: actions/setup-dotnet@main
         with:
           dotnet-version: |
             8.0.x
             7.0.x
-      
-      - name: Verify .NET installation
+
+      - name: Check expected failure
+        env:
+          OUTCOME: ${{ steps.setup.outcome }}
         run: |
-          echo "DOTNET_ROOT=$DOTNET_ROOT"
-          command -v dotnet
-          dotnet --version
-          dotnet --list-sdks
-          dotnet --list-runtimes
-  
+          if ($env:OUTCOME -ne 'failure') {
+            throw "Expected failure, got $env:OUTCOME"
+          }
 
   test-5:
-    name: Test PR 5 - ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-
-    env:
-      DOTNET_INSTALL_DIR: ''
-      DOTNET_ROOT: ''
+    name: Test PR 5
+    runs-on: windows-latest
+    timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@main
-
-      - name: Block default directory
+      - name: Block both directories
         run: |
-          test "$(id -u)" -ne 0
-          test -d /usr/share/dotnet
-          test -d "$HOME/.dotnet"
-
-          sudo chmod 000 /usr/share/dotnet
+          $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          foreach ($dir in @("$env:ProgramFiles\dotnet", "$env:USERPROFILE\.dotnet")) {
+            if (!(Test-Path $dir -PathType Container)) {
+              throw "Directory does not exist: $dir"
+            }
+            icacls $dir /deny "*${sid}:(WD,AD)"
+            if ($LASTEXITCODE -ne 0) { throw "Cannot block $dir" }
+          }
 
       - name: Setup .NET
+        id: setup
         uses: v-priyagupta108/setup-dotnet@install-dir-writable-fallback
         with:
           dotnet-version: |
             8.0.x
             7.0.x
-      
-      - name: Verify .NET installation
-        run: |
-          echo "DOTNET_ROOT=$DOTNET_ROOT"
-          command -v dotnet
-          dotnet --version
-          dotnet --list-sdks
-          dotnet --list-runtimes
 
-      - name: Confirm home fallback
+      - name: Check expected failure
+        env:
+          OUTCOME: ${{ steps.setup.outcome }}
         run: |
-          echo "DOTNET_ROOT=$DOTNET_ROOT"
-          test "$DOTNET_ROOT" = "$HOME/.dotnet"
-          "$DOTNET_ROOT/dotnet" --list-sdks
+          if ($env:OUTCOME -ne 'failure') {
+            throw "Expected failure, got $env:OUTCOME"
+          }
