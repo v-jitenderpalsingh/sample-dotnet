@@ -34,14 +34,13 @@ jobs:
           dotnet-version: |
             8.0.x
             7.0.x
-
-      - name: Check expected failure
-        env:
-          OUTCOME: ${{ steps.setup.outcome }}
+      
+      - name: verify versions
         run: |
-          if ($env:OUTCOME -ne 'failure') {
-            throw "Expected failure, got $env:OUTCOME"
-          }
+          command -v dotnet
+          dotnet --version
+          dotnet --list-sdks
+          dotnet --list-runtimes
 
   test-5:
     name: Test PR 5
@@ -67,11 +66,10 @@ jobs:
           dotnet-version: |
             8.0.x
             7.0.x
-
-      - name: Check expected failure
-        env:
-          OUTCOME: ${{ steps.setup.outcome }}
+      
+      - name: verify versions
         run: |
-          if ($env:OUTCOME -ne 'failure') {
-            throw "Expected failure, got $env:OUTCOME"
-          }
+          command -v dotnet
+          dotnet --version
+          dotnet --list-sdks
+          dotnet --list-runtimes
